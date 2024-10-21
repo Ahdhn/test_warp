@@ -98,4 +98,4 @@ if __name__ == "__main__":
         end_time = time.time()
         elapsed_time_ms = (end_time - start_time) * 1000
         print(
-            f"Computation Time: {elapsed_time_ms:.3f} ms, {elapsed_time_ms/num_iterations:.3f} ms per iteration")
+            f"Smoothing Warp: {elapsed_time_ms:.3f} ms, {elapsed_time_ms/num_iterations:.3f} ms per iteration")
