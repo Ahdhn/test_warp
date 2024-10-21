@@ -6,7 +6,13 @@ import warp.render
 
 import trimesh
 import sys
-import time 
+import time
+
+import meshplot
+from meshplot import plot, subplot, interact
+
+meshplot.offline()
+
 
 @wp.kernel
 def compute_face_normal(mesh: wp.uint64,
@@ -41,6 +47,7 @@ def compute_vertex_normal(mesh: wp.uint64,
         for j in range(3):
             wp.atomic_add(VN, 3*v + j, normal[j])
 
+
 def vertex_normal(obj_file):
     # load the mesh
     mesh = trimesh.load(obj_file, file_type='obj')
@@ -66,16 +73,18 @@ def vertex_normal(obj_file):
     # FN = wp.empty(num_faces, dtype=wp.vec3)
     # wp.launch(compute_face_normal, dim=num_faces, inputs=[mesh_wp.id, FN])
 
-
     wp.synchronize()
     end_time = time.time()
-    
-    elapsed_time_ms = (end_time - start_time) * 1000  
+
+    elapsed_time_ms = (end_time - start_time) * 1000
     print(f"Computation Time: {elapsed_time_ms:.3f} ms")
-    
+
     VN_np = VN.numpy().reshape(num_vertices, 3)
-    print("Top 5 vertex normals:")
-    print(VN_np[:5])
+    color = VN_np / (VN_np.sum(axis=1, keepdims=True) + 0.0001)
+    color = (color + 1) / 2
+
+    plot(mesh.vertices, mesh.faces, c=color,
+         filename="mesh.html", shading={"wireframe": True})
 
 
 if __name__ == "__main__":
@@ -83,4 +92,4 @@ if __name__ == "__main__":
         print("Usage: python script.py <path_to_obj_file>")
     else:
         obj_file = sys.argv[1]
-        vertex_normal(obj_file)
+        vertex_normal(obj_file=obj_file)
