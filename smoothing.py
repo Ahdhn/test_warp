@@ -20,6 +20,7 @@ benchmark = True
 @wp.kernel
 def laplacian_smoothing_energy(mesh: wp.uint64,
                                V: wp.array(dtype=wp.vec3),
+                               #energy_arr: wp.array(dtype=float),
                                energy: wp.array(dtype=float)):
 
     tid = wp.tid()
@@ -38,6 +39,9 @@ def laplacian_smoothing_energy(mesh: wp.uint64,
     l1 = wp.length(v2 - v1)
     l2 = wp.length(v0 - v2)
 
+    #energy_arr[3*f + 0] = l0
+    #energy_arr[3*f + 1] = l1
+    #energy_arr[3*f + 2] = l2
     wp.atomic_add(energy, 0, l0 + l1 + l2)
 
 
@@ -68,6 +72,9 @@ if __name__ == "__main__":
 
         energy = wp.zeros(1, dtype=float, device=device, requires_grad=True)
 
+        #energy_arr = wp.zeros((3*len(F_wp)), dtype=float,
+        #                      device=device, requires_grad=True)
+
         num_iterations = 100
         learning_rate = 0.0005
 
@@ -78,6 +85,8 @@ if __name__ == "__main__":
                 wp.launch(laplacian_smoothing_energy,
                           dim=len(F), inputs=[mesh_wp.id, V_wp, energy], device=device)
             wp.synchronize()
+
+            # energy = wp.utils.array_sum(energy_arr)
 
             tape.backward(energy)
 
