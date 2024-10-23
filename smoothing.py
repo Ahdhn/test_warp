@@ -35,9 +35,9 @@ def laplacian_smoothing_energy(mesh: wp.uint64,
     v1 = V[v1_id]
     v2 = V[v2_id]
 
-    l0 = wp.length(v1 - v0)
-    l1 = wp.length(v2 - v1)
-    l2 = wp.length(v0 - v2)
+    l0 = wp.length_sq(v1 - v0)
+    l1 = wp.length_sq(v2 - v1)
+    l2 = wp.length_sq(v0 - v2)
 
     #energy_arr[3*f + 0] = l0
     #energy_arr[3*f + 1] = l1
@@ -76,7 +76,7 @@ if __name__ == "__main__":
         #                      device=device, requires_grad=True)
 
         num_iterations = 100
-        learning_rate = 0.0005
+        learning_rate = 0.01/2.0
 
         start_time = time.time()
 
