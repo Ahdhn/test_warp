@@ -18,31 +18,23 @@ benchmark = True
 
 
 @wp.kernel
-def laplacian_smoothing_energy(mesh: wp.uint64,
+def laplacian_smoothing_energy(E: wp.array(dtype=wp.int32),
                                V: wp.array(dtype=wp.vec3),
-                               #energy_arr: wp.array(dtype=float),
                                energy: wp.array(dtype=float)):
 
     tid = wp.tid()
 
-    f = tid
+    e = tid
 
-    v0_id = wp.mesh_get_index(mesh, 3*f+0)
-    v1_id = wp.mesh_get_index(mesh, 3*f+1)
-    v2_id = wp.mesh_get_index(mesh, 3*f+2)
+    v0_id = E[2*e + 0]
+    v1_id = E[2*e + 1]
 
     v0 = V[v0_id]
     v1 = V[v1_id]
-    v2 = V[v2_id]
 
-    l0 = wp.length_sq(v1 - v0)
-    l1 = wp.length_sq(v2 - v1)
-    l2 = wp.length_sq(v0 - v2)
+    l = wp.length_sq(v1 - v0)
 
-    #energy_arr[3*f + 0] = l0
-    #energy_arr[3*f + 1] = l1
-    #energy_arr[3*f + 2] = l2
-    wp.atomic_add(energy, 0, l0 + l1 + l2)
+    wp.atomic_add(energy, 0, l)
 
 
 @wp.kernel
@@ -57,36 +49,40 @@ def take_step(V: wp.array(dtype=wp.vec3),
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print("Usage: python smoothing.py <path_to_obj_file>")
+        print("Usage: python smoothing_ev.py <path_to_obj_file>")
     else:
         obj_file = sys.argv[1]
         mesh = trimesh.load(obj_file, file_type='obj')
 
         V = np.array(mesh.vertices, dtype=np.float32)
         F = np.array(mesh.faces, dtype=np.int32)
+        
+        print("#F = ", F.shape)
+
+        E = np.concatenate([
+            F[:, [0, 1]],
+            F[:, [1, 2]],
+            F[:, [2, 0]]
+        ], axis=0)
+
+        E = np.sort(E, axis=1)
+        E = np.unique(E, axis=0)
 
         V_wp = wp.array(V, dtype=wp.vec3, requires_grad=True)
-        F_wp = wp.array(F.flatten(), dtype=wp.int32)
-
-        mesh_wp = wp.Mesh(points=V_wp, indices=F_wp)
+        E_wp = wp.array(E.flatten(), dtype=wp.int32)
 
         energy = wp.zeros(1, dtype=float, device=device, requires_grad=True)
 
-        #energy_arr = wp.zeros((3*len(F_wp)), dtype=float,
-        #                      device=device, requires_grad=True)
-
         num_iterations = 100
-        learning_rate = 0.01/2.0
+        learning_rate = 0.01
 
         start_time = time.time()
 
         for i in range(num_iterations):
             with wp.Tape() as tape:
                 wp.launch(laplacian_smoothing_energy,
-                          dim=len(F), inputs=[mesh_wp.id, V_wp, energy], device=device)
+                          dim=E.shape[0], inputs=[E_wp, V_wp, energy], device=device)
             wp.synchronize()
-
-            #energy_sum = wp.utils.array_sum(energy_arr)
 
             tape.backward(energy)
 
