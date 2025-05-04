@@ -5,6 +5,7 @@ import warp.sim
 import trimesh
 import sys
 import time
+import json
 
 import meshplot
 from meshplot import plot, subplot, interact
@@ -12,7 +13,7 @@ from meshplot import plot, subplot, interact
 meshplot.offline()
 
 device = wp.get_device("cuda")
-print(f"Working on {device} device")
+#print(f"Working on {device} device")
 
 benchmark = True
 
@@ -106,5 +107,14 @@ if __name__ == "__main__":
 
         end_time = time.time()
         elapsed_time_ms = (end_time - start_time) * 1000
-        print(
-            f"Smoothing Warp: {elapsed_time_ms:.3f} ms, {elapsed_time_ms/num_iterations:.3f} ms per iteration")
+        entry = {
+            "num_faces": int(F.shape[0]),
+            "total_time_ms": round(elapsed_time_ms, 3),
+            "num_iter": int(num_iterations)
+            }
+
+        print(f'"{os.path.basename(obj_file)}": {json.dumps(entry, indent=2)}')    
+        print(",")   
+        
+        # print(
+        #     f"Smoothing Warp: {elapsed_time_ms:.3f} ms, {elapsed_time_ms/num_iterations:.3f} ms per iteration")
