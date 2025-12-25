@@ -13,16 +13,16 @@ from meshplot import plot, subplot, interact
 meshplot.offline()
 
 device = wp.get_device("cuda")
-#print(f"Working on {device} device")
+# print(f"Working on {device} device")
 
 benchmark = True
+is_area = True
 
 
 @wp.kernel
-def laplacian_smoothing_energy(mesh: wp.uint64,
-                               V: wp.array(dtype=wp.vec3),
-                               #energy_arr: wp.array(dtype=float),
-                               energy: wp.array(dtype=float)):
+def laplacian_smoothing_energy_edges(mesh: wp.uint64,
+                                     V: wp.array(dtype=wp.vec3),
+                                     energy: wp.array(dtype=float)):
 
     tid = wp.tid()
 
@@ -40,10 +40,30 @@ def laplacian_smoothing_energy(mesh: wp.uint64,
     l1 = wp.length_sq(v2 - v1)
     l2 = wp.length_sq(v0 - v2)
 
-    #energy_arr[3*f + 0] = l0
-    #energy_arr[3*f + 1] = l1
-    #energy_arr[3*f + 2] = l2
     wp.atomic_add(energy, 0, l0 + l1 + l2)
+
+
+@wp.kernel
+def laplacian_smoothing_energy_area(mesh: wp.uint64,
+                                    V: wp.array(dtype=wp.vec3),
+                                    energy: wp.array(dtype=float)):
+
+    tid = wp.tid()
+
+    f = tid
+
+    v0_id = wp.mesh_get_index(mesh, 3*f+0)
+    v1_id = wp.mesh_get_index(mesh, 3*f+1)
+    v2_id = wp.mesh_get_index(mesh, 3*f+2)
+
+    v0 = V[v0_id]
+    v1 = V[v1_id]
+    v2 = V[v2_id]
+
+    n = wp.cross(v1 - v0, v2 - v0)
+    A = 0.5 * wp.length(n)
+
+    wp.atomic_add(energy, 0, A)
 
 
 @wp.kernel
@@ -73,21 +93,22 @@ if __name__ == "__main__":
 
         energy = wp.zeros(1, dtype=float, device=device, requires_grad=True)
 
-        #energy_arr = wp.zeros((3*len(F_wp)), dtype=float,
-        #                      device=device, requires_grad=True)
-
         num_iterations = 100
-        learning_rate = 0.01/2.0
+        learning_rate = 0.02
 
         start_time = time.time()
 
         for i in range(num_iterations):
             with wp.Tape() as tape:
-                wp.launch(laplacian_smoothing_energy,
-                          dim=len(F), inputs=[mesh_wp.id, V_wp, energy], device=device)
+                if is_area:
+                    wp.launch(laplacian_smoothing_energy_area,
+                              dim=len(F), inputs=[mesh_wp.id, V_wp, energy], device=device)
+                else: 
+                    wp.launch(laplacian_smoothing_energy_edges,
+                              dim=len(F), inputs=[mesh_wp.id, V_wp, energy], device=device)
             wp.synchronize()
 
-            #energy_sum = wp.utils.array_sum(energy_arr)
+            # energy_sum = wp.utils.array_sum(energy_arr)
 
             tape.backward(energy)
 
@@ -95,6 +116,7 @@ if __name__ == "__main__":
                       V_wp, V_wp.grad, learning_rate], device=device)
             wp.synchronize()
 
+            # print(f"Iteration {i}: Energy = {energy.numpy()[0]}")
             if not benchmark:
                 if i % 10 == 0:
                     V = V_wp.numpy().reshape(len(V_wp), 3)
@@ -111,10 +133,10 @@ if __name__ == "__main__":
             "num_faces": int(F.shape[0]),
             "total_time_ms": round(elapsed_time_ms, 3),
             "num_iter": int(num_iterations)
-            }
+        }
 
-        print(f'"{os.path.basename(obj_file)}": {json.dumps(entry, indent=2)}')    
-        print(",")   
-        
+        print(f'"{os.path.basename(obj_file)}": {json.dumps(entry, indent=2)}')
+        print(",")
+
         # print(
         #     f"Smoothing Warp: {elapsed_time_ms:.3f} ms, {elapsed_time_ms/num_iterations:.3f} ms per iteration")
