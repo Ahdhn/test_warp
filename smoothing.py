@@ -16,8 +16,6 @@ device = wp.get_device("cuda")
 # print(f"Working on {device} device")
 
 benchmark = True
-is_area = True
-
 
 @wp.kernel
 def laplacian_smoothing_energy_edges(mesh: wp.uint64,
@@ -77,10 +75,20 @@ def take_step(V: wp.array(dtype=wp.vec3),
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python smoothing.py <path_to_obj_file>")
+    if len(sys.argv) != 3:
+        print("Usage: python smoothing.py <path_to_obj_file> area|edge")
+        sys.exit(1)
     else:
         obj_file = sys.argv[1]
+
+        if sys.argv[2] == "area":
+            is_area = True
+        elif sys.argv[2] == "edge":
+            is_area = False
+        else:
+            print("Usage: python smoothing.py <path_to_obj_file> area|edge")
+            sys.exit(1)
+
         mesh = trimesh.load(obj_file, file_type='obj')
 
         V = np.array(mesh.vertices, dtype=np.float32)
@@ -103,7 +111,7 @@ if __name__ == "__main__":
                 if is_area:
                     wp.launch(laplacian_smoothing_energy_area,
                               dim=len(F), inputs=[mesh_wp.id, V_wp, energy], device=device)
-                else: 
+                else:
                     wp.launch(laplacian_smoothing_energy_edges,
                               dim=len(F), inputs=[mesh_wp.id, V_wp, energy], device=device)
             wp.synchronize()
