@@ -17,6 +17,9 @@ device = wp.get_device("cuda")
 
 benchmark = True
 
+wp.config.print_launches = False
+wp.config.verbose = False
+
 @wp.kernel
 def laplacian_smoothing_energy_edges(mesh: wp.uint64,
                                      V: wp.array(dtype=wp.vec3),
@@ -101,7 +104,7 @@ if __name__ == "__main__":
 
         energy = wp.zeros(1, dtype=float, device=device, requires_grad=True)
 
-        num_iterations = 100
+        num_iterations = 20
         learning_rate = 0.02
 
         start_time = time.time()
@@ -145,6 +148,14 @@ if __name__ == "__main__":
 
         print(f'"{os.path.basename(obj_file)}": {json.dumps(entry, indent=2)}')
         print(",")
+        
+        line1 = f"\"{os.path.basename(obj_file)}\": {json.dumps(entry, indent=2)}"
+        line2 = ","
+
+        log_path = "jax_benchmarks.json"
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(line1 + "\n")
+            f.write(line2 + "\n")
 
         # print(
         #     f"Smoothing Warp: {elapsed_time_ms:.3f} ms, {elapsed_time_ms/num_iterations:.3f} ms per iteration")
